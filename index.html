@@ -587,12 +587,22 @@
     }
     body * { visibility: hidden; }
     #print-area, #print-area * { visibility: visible; }
+    #envelope-print-area, #envelope-print-area * { visibility: visible; }
     #print-area {
       position: fixed;
       top: 0; left: 0;
       width: 100%;
       padding: 0 24px;
     }
+    #envelope-print-area {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%;
+      padding: 20px 24px;
+    }
+    /* 封書印刷モード：封書エリアのみ表示 */
+    body.envelope-print-mode #print-area { visibility: hidden !important; }
+    body:not(.envelope-print-mode) #envelope-print-area { visibility: hidden !important; }
     .print-subject-block,
     .print-items-table th {
       -webkit-print-color-adjust: exact !important;
@@ -622,6 +632,91 @@
   /* 画面表示時はフッター非表示 */
   .print-footer-custom {
     display: none;
+  }
+
+  /* ===================== 封書プレビュー（Excelレイアウト忠実再現） ===================== */
+  /*
+    Excelレイアウト:
+    行3 C3: 郵便番号 font-size:14px
+    行4 C4: 住所    font-size:14px 左揃え
+    行5: 空行スペーサー
+    行6 C6: 会社名  font-size:16px（列C〜D幅広）
+    行7 C7: 部署名  font-size:16px  F7:担当者 font-size:16px  G7:様 font-size:18px 右揃え
+    ※切り取って貼り付けるため、点線枠付き・白背景
+  */
+  .envelope-wrap {
+    background: #f5f0e8;
+    padding: 24px;
+    display: flex;
+    justify-content: center;
+  }
+  .envelope-document {
+    font-family: 'Noto Sans JP', sans-serif;
+    background: #fff;
+    color: #1a1612;
+    width: 480px;
+    border: 2px dashed #aaa;
+    padding: 20px 28px 24px 28px;
+    box-sizing: border-box;
+    line-height: 1;
+  }
+  /* 行3: 郵便番号 */
+  .env-row-postal {
+    font-size: 14px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    margin-bottom: 0;
+  }
+  /* 行4: 住所 */
+  .env-row-address {
+    font-size: 14px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    text-align: left;
+    margin-bottom: 0;
+  }
+  /* 行5: 空行スペーサー */
+  .env-row-spacer {
+    height: 24px;
+  }
+  /* 行6: 会社名 */
+  .env-row-company {
+    font-size: 16px;
+    height: 31px;
+    display: flex;
+    align-items: center;
+    margin-bottom: 0;
+  }
+  /* 行7: 部署名＋担当者＋様 */
+  .env-row-name {
+    font-size: 16px;
+    height: 31px;
+    display: flex;
+    align-items: center;
+  }
+  .env-dept {
+    flex: 1;
+    font-size: 16px;
+  }
+  .env-person {
+    font-size: 16px;
+    white-space: nowrap;
+  }
+  .env-sama {
+    font-size: 18px;
+    text-align: right;
+    white-space: nowrap;
+    margin-left: 4px;
+  }
+  /* 切り取りガイドテキスト */
+  .envelope-guide {
+    text-align: center;
+    font-size: 11px;
+    color: var(--text3);
+    margin-bottom: 12px;
+    letter-spacing: 0.05em;
   }
 </style>
 </head>
@@ -897,6 +992,16 @@ CREATE TABLE cover_letter_items (
         <label class="form-label">担当者名</label>
         <input type="text" id="rec-contact" class="form-control" placeholder="例：相沢">
       </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">郵便番号</label>
+          <input type="text" id="rec-postal" class="form-control" placeholder="例：〒980-0012">
+        </div>
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label">住所</label>
+          <input type="text" id="rec-address" class="form-control" placeholder="例：仙台市青葉区錦町一丁目7-25">
+        </div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modal-recipient')">キャンセル</button>
@@ -919,7 +1024,27 @@ CREATE TABLE cover_letter_items (
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modal-view')">閉じる</button>
+      <button class="btn btn-secondary" onclick="openEnvelopeModal()">✉ 封書用印刷</button>
       <button class="btn btn-primary" onclick="window.print()">🖨 印刷</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======================== MODAL: 封書印刷 ======================== -->
+<div id="modal-envelope" class="modal-overlay">
+  <div class="modal print-modal">
+    <div class="modal-header">
+      <span class="modal-title">✉ 封書用印刷プレビュー</span>
+      <button class="close-btn" onclick="closeModal('modal-envelope')">✕</button>
+    </div>
+    <div class="modal-body" style="padding:16px;">
+      <div id="envelope-print-area">
+        <div id="envelope-content"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-envelope')">閉じる</button>
+      <button class="btn btn-primary" onclick="printEnvelope()">🖨 封書印刷</button>
     </div>
   </div>
 </div>
@@ -1083,6 +1208,8 @@ function openRecipientModal(id = null) {
   document.getElementById('rec-company').value = rec ? rec.company_name : '';
   document.getElementById('rec-dept').value = rec ? (rec.department || '') : '';
   document.getElementById('rec-contact').value = rec ? (rec.contact_name || '') : '';
+  document.getElementById('rec-postal').value = rec ? (rec.postal_code || '') : '';
+  document.getElementById('rec-address').value = rec ? (rec.address || '') : '';
   openModal('modal-recipient');
 }
 
@@ -1093,6 +1220,8 @@ async function saveRecipient() {
     company_name: company,
     department: document.getElementById('rec-dept').value.trim(),
     contact_name: document.getElementById('rec-contact').value.trim(),
+    postal_code: document.getElementById('rec-postal').value.trim(),
+    address: document.getElementById('rec-address').value.trim(),
   };
   if (supabaseClient) {
     if (state.editingRecipientId) {
@@ -1265,6 +1394,7 @@ async function deleteLetter(id) {
 // VIEW / PRINT
 // ============================================================
 function viewLetter(id) {
+  currentEnvelopeLetterId = id;
   const letter = state.letters.find(l => l.id === id);
   if (!letter) return;
   const recipient = state.recipients.find(r => r.id === letter.recipient_id);
@@ -1326,8 +1456,55 @@ function viewLetter(id) {
 }
 
 // ============================================================
-// RENDER
+// ENVELOPE PRINT
 // ============================================================
+let currentEnvelopeLetterId = null;
+
+function openEnvelopeModal() {
+  if (!currentEnvelopeLetterId) return;
+  const letter = state.letters.find(l => l.id === currentEnvelopeLetterId);
+  if (!letter) return;
+  const recipient = state.recipients.find(r => r.id === letter.recipient_id);
+  const sender = state.sender;
+
+  const postal = recipient?.postal_code || '';
+  const address = recipient?.address || '';
+  const company = recipient?.company_name || '';
+  const dept = recipient?.department || '';
+  const contact = recipient?.contact_name || '';
+
+  // Excelレイアウト忠実再現
+  // 行3: 郵便番号 (C3, font-size:14px)
+  // 行4: 住所    (C4, font-size:14px, 左揃え)
+  // 行5: 空行スペーサー
+  // 行6: 会社名  (C6, font-size:16px)
+  // 行7: 部署名(C7,16px) + 担当者(F7,16px) + 様(G7,18px,右揃え)
+
+  const html = `
+    <div class="envelope-guide">✂ 点線に沿って切り取り、封筒に貼り付けてください</div>
+    <div class="envelope-document">
+      <div class="env-row-postal">${esc(postal)}</div>
+      <div class="env-row-address">${esc(address)}</div>
+      <div class="env-row-spacer"></div>
+      <div class="env-row-company">${esc(company)}</div>
+      <div class="env-row-name">
+        <span class="env-dept">${esc(dept)}</span>
+        <span class="env-person">　${esc(contact)}</span>
+        <span class="env-sama">　様</span>
+      </div>
+    </div>
+  `;
+  document.getElementById('envelope-content').innerHTML = html;
+  openModal('modal-envelope');
+}
+
+function printEnvelope() {
+  document.body.classList.add('envelope-print-mode');
+  window.print();
+  document.body.classList.remove('envelope-print-mode');
+}
+
+
 function renderAll() {
   updateRecipientSelects();
   renderList();
@@ -1510,8 +1687,8 @@ function showToast(msg, type = 'success') {
   // Seed demo data if empty
   if (!lsGet('recipients').length && !supabaseClient) {
     const demoRecipients = [
-      { id: 'r1', company_name: '株式会社 復建技術コンサルタント', department: '道路保全部 技術三課', contact_name: '相沢', created_at: new Date().toISOString() },
-      { id: 'r2', company_name: '秋田県 秋田地域振興局', department: '建設部 道路課', contact_name: '田中', created_at: new Date().toISOString() },
+      { id: 'r1', company_name: '株式会社 復建技術コンサルタント', department: '道路保全部 技術三課', contact_name: '相沢', postal_code: '〒980-0012', address: '仙台市青葉区錦町一丁目7-25', created_at: new Date().toISOString() },
+      { id: 'r2', company_name: '秋田県 秋田地域振興局', department: '建設部 道路課', contact_name: '田中', postal_code: '', address: '', created_at: new Date().toISOString() },
     ];
     lsSet('recipients', demoRecipients);
     lsSet('letters', [{
