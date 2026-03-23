@@ -447,8 +447,8 @@
     padding: 14px 20px;
     background: transparent;
     border-left: 3px solid #1a1612;
-    font-size: 13.5px;
-    font-weight: 600;
+    font-size: 11.5px;
+    font-weight: 400;
     letter-spacing: 0.04em;
     color: #1a1612;
   }
@@ -1275,8 +1275,8 @@ function viewLetter(id) {
 
   let itemsHtml = items.map(item => `
     <tr>
-      <td>${esc(item.description)}</td>
-      <td>${esc(item.document_type)}</td>
+      <td style="text-align:center;">${esc(item.description)}</td>
+      <td style="text-align:center;">${esc(item.document_type)}</td>
       <td style="text-align:center;">${item.quantity}部</td>
     </tr>
   `).join('');
