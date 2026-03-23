@@ -529,15 +529,15 @@
 
   /* ===================== PRINT HEADER LINES ===================== */
   .print-top-lines {
-    margin-bottom: 20px;
+    margin-bottom: 16px;
+    margin-top: -16px;
   }
   .print-top-lines .line-black {
-    height: 1px;
+    height: 3px;
     background: #1a1612;
-    margin-bottom: 4px;
   }
   .print-top-lines .line-gray {
-    height: 3px;
+    height: 6px;
     background: #b0a89a;
   }
 
@@ -557,10 +557,18 @@
       width: 100%;
       padding: 16px 24px;
     }
-    * {
+    .print-subject-block,
+    .print-items-table th {
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
       color-adjust: exact !important;
+    }
+    .print-document {
+      background: #fff !important;
+    }
+    .print-body-text {
+      background: #fff !important;
+      border: none !important;
     }
     .print-footer-custom {
       display: block !important;
