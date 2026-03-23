@@ -2022,7 +2022,7 @@ function parseCSVLine(line) {
   return result;
 }
 
-
+function renderRecipients() {
   const tbody = document.getElementById('recipients-body');
   if (!state.recipients.length) {
     tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:32px;">送り先がありません</td></tr>`;
