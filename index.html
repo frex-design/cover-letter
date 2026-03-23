@@ -913,7 +913,6 @@ CREATE TABLE cover_letter_items (
     <button class="tab-btn active" onclick="openTab('list')">📄 送付書一覧</button>
     <button class="tab-btn" onclick="openTab('by-recipient')">🏢 送り先別</button>
     <button class="tab-btn" onclick="openTab('recipients')">👥 送り先管理</button>
-    <button class="tab-btn" onclick="openTab('settings')">⚙ 設定</button>
   </div>
 
   <!-- TAB: 一覧 -->
@@ -1850,7 +1849,7 @@ function renderAll() {
 
 function renderStats() {
   const totalLetters = state.letters.length;
-  const totalRecipients = state.recipients.length;
+  const unsentCount = state.letters.filter(l => !l.is_sent).length;
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
   const today = state.letters.filter(l => {
@@ -1859,9 +1858,9 @@ function renderStats() {
   }).length;
 
   document.getElementById('stats-grid').innerHTML = `
-    <div class="stat-card"><div class="stat-label">総送付書数</div><div class="stat-value">${totalLetters}</div></div>
-    <div class="stat-card"><div class="stat-label">送り先数</div><div class="stat-value">${totalRecipients}</div></div>
     <div class="stat-card"><div class="stat-label">今日の送付</div><div class="stat-value">${today}</div></div>
+    <div class="stat-card"><div class="stat-label">総送付書数</div><div class="stat-value">${totalLetters}</div></div>
+    <div class="stat-card"><div class="stat-label">未送付</div><div class="stat-value" style="color:var(--warning);">${unsentCount}</div></div>
   `;
 }
 
@@ -1987,7 +1986,7 @@ function updateRecipientSelects() {
 // ============================================================
 function openTab(name) {
   document.querySelectorAll('.tab-btn').forEach((btn, i) => {
-    const tabs = ['list','by-recipient','recipients','settings'];
+    const tabs = ['list','by-recipient','recipients'];
     btn.classList.toggle('active', tabs[i] === name);
   });
   document.querySelectorAll('.tab-panel').forEach(p => {
