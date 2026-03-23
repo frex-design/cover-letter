@@ -1364,9 +1364,11 @@ async function saveRecipient() {
   };
   if (supabaseClient) {
     if (state.editingRecipientId) {
-      await supabaseClient.from('recipients').update(rec).eq('id', state.editingRecipientId);
+      const { error } = await supabaseClient.from('recipients').update(rec).eq('id', state.editingRecipientId);
+      if (error) { showToast('保存エラー: ' + error.message, 'error'); return; }
     } else {
-      await supabaseClient.from('recipients').insert(rec);
+      const { error } = await supabaseClient.from('recipients').insert(rec);
+      if (error) { showToast('保存エラー: ' + error.message, 'error'); return; }
     }
     await loadRecipients();
   } else {
