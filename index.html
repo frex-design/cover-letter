@@ -1411,11 +1411,11 @@ function openNewModal() {
   document.getElementById('form-recipient').value = '';
   document.getElementById('form-subject').value = '';
   document.getElementById('form-body').value = DEFAULT_BODY;
-  const today = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
   document.getElementById('form-date').value = today;
-  const td = new Date(today + 'T00:00:00');
-  document.getElementById('form-date-display').value = `${td.getFullYear()}年${String(td.getMonth()+1).padStart(2,'0')}月${String(td.getDate()).padStart(2,'0')}日`;
-  calDate = new Date(td.getFullYear(), td.getMonth(), 1);
+  document.getElementById('form-date-display').value = `${now.getFullYear()}年${String(now.getMonth()+1).padStart(2,'0')}月${String(now.getDate()).padStart(2,'0')}日`;
+  calDate = new Date(now.getFullYear(), now.getMonth(), 1);
   document.getElementById('unsent-btn').style.display = 'none';
   renderItemsList([{ description: '', document_type: '', quantity: 1 }]);
   openModal('modal-letter');
