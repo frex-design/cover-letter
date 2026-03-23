@@ -721,6 +721,29 @@
   .cal-day.holiday { color: #c0392b; font-weight: 700; }
   .cal-day.selected.sun, .cal-day.selected.sat, .cal-day.selected.holiday { color: #fff; }
 
+  /* ===================== 送付済みバッジ ===================== */
+  .btn-sent {
+    background: transparent;
+    color: var(--success);
+    border: 1px solid var(--success);
+  }
+  .btn-sent:hover { background: rgba(74,124,89,0.1); }
+  .sent-flash {
+    animation: sentFlash 0.6s ease forwards;
+  }
+  @keyframes sentFlash {
+    0%   { background: #4a7c59; color: #fff; transform: scale(1); }
+    40%  { background: #6abf82; color: #fff; transform: scale(1.08); box-shadow: 0 0 12px rgba(74,124,89,0.5); }
+    100% { background: #4a7c59; color: #fff; transform: scale(1); }
+  }
+  tr.is-sent td { opacity: 0.55; }
+  tr.is-sent td .sent-label {
+    font-size: 11px;
+    color: var(--success);
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+
 
   /*
     Excelレイアウト:
@@ -897,11 +920,11 @@ CREATE TABLE cover_letter_items (
   <div id="tab-list" class="tab-panel active">
     <div class="stats-grid" id="stats-grid"></div>
     <div class="filter-bar">
-      <input type="text" id="search-input" class="form-control" placeholder="🔍 件名・送り先で検索..." oninput="renderList()">
+      <input type="text" id="search-input" class="form-control" placeholder="🔍 件名・送り先・担当者名で検索..." oninput="renderList()">
       <select id="filter-recipient" class="form-control" onchange="renderList()">
         <option value="">すべての送り先</option>
       </select>
-      <button class="btn btn-secondary btn-sm" onclick="renderList()">🔄 更新</button>
+      <button class="btn btn-secondary btn-sm" onclick="loadAll()">🔄 再読み込み</button>
     </div>
     <div class="table-wrap">
       <table>
@@ -911,6 +934,7 @@ CREATE TABLE cover_letter_items (
             <th>送り先</th>
             <th>件名</th>
             <th>送付点数</th>
+            <th>送付状況</th>
             <th>操作</th>
           </tr>
         </thead>
@@ -1068,6 +1092,7 @@ CREATE TABLE cover_letter_items (
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modal-letter')">キャンセル</button>
+      <button class="btn btn-warning btn-sm" id="unsent-btn" style="display:none;" onclick="markAsUnsent()">↩ 送付済を取り消す</button>
       <button class="btn btn-primary" onclick="saveLetter()">💾 保存</button>
     </div>
   </div>
@@ -1384,6 +1409,7 @@ function openNewModal() {
   document.getElementById('form-date').value = today;
   const td = new Date(today + 'T00:00:00');
   document.getElementById('form-date-display').value = `${td.getFullYear()}年${String(td.getMonth()+1).padStart(2,'0')}月${String(td.getDate()).padStart(2,'0')}日`;
+  document.getElementById('unsent-btn').style.display = 'none';
   renderItemsList([{ description: '', document_type: '', quantity: 1 }]);
   openModal('modal-letter');
 }
@@ -1404,6 +1430,8 @@ function openEditModal(id) {
   } else {
     document.getElementById('form-date-display').value = '';
   }
+  // 送付済の場合は取り消しボタンを表示
+  document.getElementById('unsent-btn').style.display = letter.is_sent ? 'inline-flex' : 'none';
   const items = state.letterItems[id] || [{ description: '', document_type: '', quantity: 1 }];
   renderItemsList(items);
   openModal('modal-letter');
@@ -1497,6 +1525,42 @@ async function saveLetter() {
   renderAll();
   showToast('送付書を保存しました', 'success');
 }
+
+async function markAsSent(id) {
+  const btn = document.getElementById(`sent-btn-${id}`);
+  if (btn) {
+    btn.textContent = '✅ 送付済！';
+    btn.classList.add('sent-flash');
+  }
+  setTimeout(async () => {
+    const idx = state.letters.findIndex(l => l.id === id);
+    if (idx >= 0) state.letters[idx].is_sent = true;
+    if (supabaseClient) {
+      await supabaseClient.from('cover_letters').update({ is_sent: true }).eq('id', id);
+    } else {
+      lsSet('letters', state.letters);
+    }
+    renderList();
+    renderStats();
+  }, 700);
+}
+
+async function markAsUnsent() {
+  const id = state.editingLetterId;
+  if (!id) return;
+  const idx = state.letters.findIndex(l => l.id === id);
+  if (idx >= 0) state.letters[idx].is_sent = false;
+  if (supabaseClient) {
+    await supabaseClient.from('cover_letters').update({ is_sent: false }).eq('id', id);
+  } else {
+    lsSet('letters', state.letters);
+  }
+  document.getElementById('unsent-btn').style.display = 'none';
+  closeModal('modal-letter');
+  renderList();
+  showToast('送付済を取り消しました', 'success');
+}
+
 
 async function deleteLetter(id) {
   if (!confirm('この送付書を削除しますか？')) return;
@@ -1785,16 +1849,17 @@ function renderAll() {
 function renderStats() {
   const totalLetters = state.letters.length;
   const totalRecipients = state.recipients.length;
-  const thisMonth = state.letters.filter(l => {
-    const d = l.custom_date || l.created_at || '';
-    const now = new Date();
-    return d.startsWith(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`);
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const today = state.letters.filter(l => {
+    const d = (l.custom_date || l.created_at || '').substring(0, 10);
+    return d === todayStr;
   }).length;
 
   document.getElementById('stats-grid').innerHTML = `
     <div class="stat-card"><div class="stat-label">総送付書数</div><div class="stat-value">${totalLetters}</div></div>
     <div class="stat-card"><div class="stat-label">送り先数</div><div class="stat-value">${totalRecipients}</div></div>
-    <div class="stat-card"><div class="stat-label">今月の送付</div><div class="stat-value">${thisMonth}</div></div>
+    <div class="stat-card"><div class="stat-label">今日の送付</div><div class="stat-value">${today}</div></div>
   `;
 }
 
@@ -1804,13 +1869,16 @@ function renderList() {
   const tbody = document.getElementById('list-body');
   let filtered = state.letters.filter(l => {
     const rec = state.recipients.find(r => r.id === l.recipient_id);
-    const matchSearch = !search || (l.subject||'').toLowerCase().includes(search) || (rec?.company_name||'').toLowerCase().includes(search);
+    const matchSearch = !search ||
+      (l.subject||'').toLowerCase().includes(search) ||
+      (rec?.company_name||'').toLowerCase().includes(search) ||
+      (rec?.contact_name||'').toLowerCase().includes(search);
     const matchRec = !filterRec || l.recipient_id === filterRec;
     return matchSearch && matchRec;
   });
 
   if (!filtered.length) {
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:32px;">送付書がありません</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:32px;">送付書がありません</td></tr>`;
     return;
   }
 
@@ -1818,7 +1886,9 @@ function renderList() {
     const rec = state.recipients.find(r => r.id === l.recipient_id);
     const items = state.letterItems[l.id] || [];
     const dateStr = l.custom_date || l.created_at?.split('T')[0] || '';
-    return `<tr>
+    const isSent = l.is_sent || false;
+    const sentClass = isSent ? ' is-sent' : '';
+    return `<tr id="row-${l.id}" class="${sentClass}">
       <td style="font-family:var(--font-mono);font-size:12px;color:var(--text2)">${dateStr}</td>
       <td>
         <div style="font-weight:600">${esc(rec?.company_name||'（不明）')}</div>
@@ -1826,6 +1896,12 @@ function renderList() {
       </td>
       <td>${esc(l.subject||'')}</td>
       <td><span class="badge badge-blue">${items.length} 種</span></td>
+      <td style="text-align:center;">
+        ${isSent
+          ? `<span class="sent-label">✅ 送付済</span>`
+          : `<button class="btn btn-sent btn-sm" id="sent-btn-${l.id}" onclick="markAsSent('${l.id}')">📮 送付済にする</button>`
+        }
+      </td>
       <td class="td-actions">
         <button class="btn btn-secondary btn-sm" onclick="viewLetter('${l.id}')">👁 表示</button>
         <button class="btn btn-warning btn-sm" onclick="openEditModal('${l.id}')">✏ 編集</button>
