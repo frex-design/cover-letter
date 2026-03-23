@@ -203,9 +203,9 @@
   ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 
   /* ===== DRAG AND DROP ===== */
-  .drag-handle { cursor: grab; color: var(--border2); font-size: 16px; padding: 0 4px; user-select: none; -webkit-user-select: none; }
+  .drag-handle { cursor: grab; color: var(--border2); font-size: 16px; padding: 0 4px; user-select: none; -webkit-user-select: none; display:inline-block; }
   .drag-handle:hover { color: var(--accent); }
-  tr.dragging { opacity: 0.3; }
+  tr.dragging { opacity: 0.3; background: rgba(37,99,235,0.05) !important; }
   tr.drag-over td { border-top: 2px solid var(--accent) !important; }
 
   /* ===== MISC ===== */
@@ -942,7 +942,7 @@ const ACCOUNTS = [
 ];
 const INIT_DATE = '2026-03-31';
 
-// 残高調整: { accountId: { date: 'YYYY-MM-DD', actual: number } }
+// 残高調整
 let balanceAdjustments = {};
 
 // ===== SUPABASE CONFIG =====
@@ -965,26 +965,39 @@ async function sbFetch(path, method = 'GET', body = null) {
   if (method === 'DELETE' || method === 'PATCH') return true;
   try { return await res.json(); } catch { return true; }
 }
+
 function entryToRow(e) {
-  return { id: e.id, date: e.date, account: e.account, type: e.type, status: e.status,
+  return {
+    id: e.id, date: e.date, account: e.account, type: e.type, status: e.status,
     amount: e.amount, partner: e.partner||null, description: e.desc||null,
     category: e.category||null, pay_method: e.payMethod||null,
-    is_card: e.isCard||false, is_transfer: e.isTransfer||false };
+    is_card: e.isCard||false, is_transfer: e.isTransfer||false,
+    sort_order: e.sort_order || e.id,
+  };
 }
 function rowToEntry(r) {
-  return { id: r.id, date: r.date, account: r.account, type: r.type, status: r.status,
+  return {
+    id: r.id, date: r.date, account: r.account, type: r.type, status: r.status,
     amount: Number(r.amount), partner: r.partner||'', desc: r.description||'',
     category: r.category||'', payMethod: r.pay_method||'',
-    isCard: r.is_card||false, isTransfer: r.is_transfer||false };
+    isCard: r.is_card||false, isTransfer: r.is_transfer||false,
+    sort_order: r.sort_order || r.id,
+  };
 }
+
 function showSyncStatus(msg) {
   let el = document.getElementById('syncStatus');
-  if (!el) { el = document.createElement('div'); el.id = 'syncStatus';
+  if (!el) {
+    el = document.createElement('div'); el.id = 'syncStatus';
     el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a2236;color:#fff;padding:8px 18px;border-radius:8px;font-size:12px;z-index:9999;';
-    document.body.appendChild(el); }
+    document.body.appendChild(el);
+  }
   el.textContent = msg; el.style.display = 'block';
 }
-function hideSyncStatus() { const el = document.getElementById('syncStatus'); if (el) el.style.display = 'none'; }
+function hideSyncStatus() {
+  const el = document.getElementById('syncStatus');
+  if (el) el.style.display = 'none';
+}
 
 function saveAdjustments() {
   localStorage.setItem('fd_balance_adj', JSON.stringify(balanceAdjustments));
@@ -1031,7 +1044,8 @@ async function load() {
   const local = localStorage.getItem('fd_entries_v3');
   if (local) entries = JSON.parse(local);
   showSyncStatus('同期中…');
-  const data = await sbFetch('/rest/v1/entries?select=*&order=date.asc');
+  // sort_orderでソートして取得
+  const data = await sbFetch('/rest/v1/entries?select=*&order=date.asc,sort_order.asc');
   if (data && Array.isArray(data)) {
     entries = data.map(rowToEntry);
     localStorage.setItem('fd_entries_v3', JSON.stringify(entries));
@@ -1497,7 +1511,7 @@ function renderDailyTable() {
     if (filterStatus !== 'all' && e.status !== filterStatus) return false;
     return true;
   });
-  filtered.sort((a,b) => a.date.localeCompare(b.date) || a.id - b.id);
+  filtered.sort((a,b) => a.date.localeCompare(b.date) || (a.sort_order||a.id) - (b.sort_order||b.id));
 
   if (filtered.length === 0) {
     document.getElementById('dailyTableBody').innerHTML = `<tr><td colspan="12" class="empty-state">データがありません。入出金を登録してください。</td></tr>`;
@@ -1602,9 +1616,8 @@ function renderDailyTable() {
   initDragDrop();
 }
 
-// ===== DRAG AND DROP =====
-// DOMを直接並び替えてからID順序でentriesを再構築するシンプルな方式
-let dragSrcEl = null;
+// ===== DRAG AND DROP（sort_order方式）=====
+let dragSrcId = null;
 
 function initDragDrop() {
   const tbody = document.getElementById('dailyTableBody');
@@ -1613,23 +1626,23 @@ function initDragDrop() {
   tbody.querySelectorAll('tr[data-id]').forEach(row => {
 
     row.addEventListener('dragstart', e => {
-      dragSrcEl = row;
+      dragSrcId = parseInt(row.dataset.id);
       e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', row.dataset.id);
+      e.dataTransfer.setData('text/plain', String(dragSrcId));
       setTimeout(() => row.classList.add('dragging'), 0);
     });
 
     row.addEventListener('dragend', () => {
       row.classList.remove('dragging');
       tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over'));
-      dragSrcEl = null;
     });
 
     row.addEventListener('dragover', e => {
       e.preventDefault();
-      if (!dragSrcEl || dragSrcEl === row) return;
-      // 同じ日付のみ許可
-      if (dragSrcEl.dataset.date !== row.dataset.date) {
+      if (dragSrcId === null || dragSrcId === parseInt(row.dataset.id)) return;
+      const srcEntry = entries.find(en => en.id === dragSrcId);
+      const tgtEntry = entries.find(en => en.id === parseInt(row.dataset.id));
+      if (!srcEntry || !tgtEntry || srcEntry.date !== tgtEntry.date) {
         e.dataTransfer.dropEffect = 'none';
         return;
       }
@@ -1647,27 +1660,39 @@ function initDragDrop() {
       e.stopPropagation();
       tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over', 'dragging'));
 
-      if (!dragSrcEl || dragSrcEl === row) return;
-      if (dragSrcEl.dataset.date !== row.dataset.date) return;
+      const targetId = parseInt(row.dataset.id);
+      if (dragSrcId === null || dragSrcId === targetId) { dragSrcId = null; return; }
 
-      // DOMを直接入れ替え（tbodyのinsertBeforeを使用）
-      tbody.insertBefore(dragSrcEl, row);
+      const srcEntry = entries.find(en => en.id === dragSrcId);
+      const tgtEntry = entries.find(en => en.id === targetId);
+      if (!srcEntry || !tgtEntry || srcEntry.date !== tgtEntry.date) { dragSrcId = null; return; }
 
-      // DOM順序からentriesを再ソート
-      const domOrder = Array.from(tbody.querySelectorAll('tr[data-id]'))
-        .map(r => parseInt(r.dataset.id));
+      // 同日付の行を現在の表示順で取得
+      const sameDayRows = Array.from(tbody.querySelectorAll(`tr[data-date="${srcEntry.date}"]`));
+      const orderedIds = sameDayRows.map(r => parseInt(r.dataset.id));
 
-      // domOrderに従ってentriesを並び替え
-      const idToEntry = {};
-      entries.forEach(en => { idToEntry[en.id] = en; });
+      // srcをtgtの位置に移動したnewOrderを作成
+      const srcPos = orderedIds.indexOf(dragSrcId);
+      const tgtPos = orderedIds.indexOf(targetId);
+      orderedIds.splice(srcPos, 1);
+      orderedIds.splice(tgtPos, 0, dragSrcId);
 
-      // DOM順にあるIDのみ並び替え、残りはそのまま後ろに
-      const reordered = domOrder.map(id => idToEntry[id]).filter(Boolean);
-      const notInDom = entries.filter(en => !domOrder.includes(en.id));
-      entries = [...reordered, ...notInDom];
+      // sort_orderを更新（日付内での連番）
+      // まず同日付の最小sort_orderを基準にする
+      const base = Math.min(...entries.filter(en => en.date === srcEntry.date).map(en => en.sort_order || en.id));
+      orderedIds.forEach((id, idx) => {
+        const en = entries.find(en => en.id === id);
+        if (en) en.sort_order = base + idx;
+      });
 
-      dragSrcEl = null;
-      await save();
+      // Supabaseに変更されたsort_orderを保存
+      const updates = orderedIds.map((id, idx) => ({ id, sort_order: base + idx }));
+      for (const u of updates) {
+        await sbFetch(`/rest/v1/entries?id=eq.${u.id}`, 'PATCH', { sort_order: u.sort_order });
+      }
+
+      localStorage.setItem('fd_entries_v3', JSON.stringify(entries));
+      dragSrcId = null;
       renderDailyTable();
       showToast('並び順を更新しました');
     });
