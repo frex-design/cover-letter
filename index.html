@@ -776,11 +776,19 @@
     color: #1a1612;
     width: 480px;
     border: 2px dashed #aaa;
-    outline: 2px solid #ccc;
-    outline-offset: -8px;
-    padding: 20px 28px 24px 28px;
+    outline: 1px solid #000;
+    outline-offset: -14px;
+    padding: 40px 52px 44px 52px;
     box-sizing: border-box;
     line-height: 1;
+    position: relative;
+  }
+  .envelope-document::after {
+    content: '';
+    position: absolute;
+    inset: 16px;
+    border: 1px solid #000;
+    pointer-events: none;
   }
   /* 行3: 郵便番号 */
   .env-row-postal {
