@@ -387,7 +387,7 @@
     margin-bottom: 2px;
   }
   .print-to-block .to-dept {
-    font-size: 12px;
+    font-size: 13px;
     color: #6b5f52;
     font-weight: 400;
     margin-bottom: 4px;
@@ -634,7 +634,94 @@
     display: none;
   }
 
-  /* ===================== 封書プレビュー（Excelレイアウト忠実再現） ===================== */
+  /* ===================== カスタムカレンダー ===================== */
+  .custom-date-wrap {
+    position: relative;
+  }
+  .custom-calendar {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 1000;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    padding: 12px;
+    width: 260px;
+  }
+  .custom-calendar.open { display: block; }
+  .cal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .cal-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: 0.04em;
+  }
+  .cal-nav {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text2);
+    width: 28px;
+    height: 28px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition);
+  }
+  .cal-nav:hover { background: var(--bg3); color: var(--text); }
+  .cal-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    margin-bottom: 4px;
+  }
+  .cal-weekdays span {
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text3);
+    padding: 4px 0;
+  }
+  .cal-weekdays span:first-child { color: #c0392b; }
+  .cal-weekdays span:last-child { color: #2980b9; }
+  .cal-days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+  }
+  .cal-day {
+    text-align: center;
+    padding: 6px 2px;
+    font-size: 12px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    color: var(--text);
+    transition: all var(--transition);
+    border: none;
+    background: none;
+    font-family: var(--font-sans);
+  }
+  .cal-day:hover { background: var(--bg3); }
+  .cal-day.today { font-weight: 700; color: #fff; background: #888; }
+  .cal-day.today:hover { background: #777; }
+  .cal-day.selected { background: var(--accent); color: #fff; }
+  .cal-day.selected:hover { background: var(--accent2); }
+  .cal-day.empty { cursor: default; }
+  .cal-day.sun { color: #c0392b; font-weight: 700; }
+  .cal-day.sat { color: #2980b9; }
+  .cal-day.holiday { color: #c0392b; font-weight: 700; }
+  .cal-day.selected.sun, .cal-day.selected.sat, .cal-day.selected.holiday { color: #fff; }
+
+
   /*
     Excelレイアウト:
     行3 C3: 郵便番号 font-size:14px
@@ -946,7 +1033,21 @@ CREATE TABLE cover_letter_items (
         </div>
         <div class="form-group">
           <label class="form-label">送付日</label>
-          <input type="date" id="form-date" class="form-control">
+          <div class="custom-date-wrap" id="date-wrap">
+            <input type="text" id="form-date-display" class="form-control" placeholder="日付を選択" readonly onclick="toggleCalendar()" style="cursor:pointer;">
+            <input type="hidden" id="form-date">
+            <div class="custom-calendar" id="custom-calendar">
+              <div class="cal-header">
+                <button class="cal-nav" onclick="changeMonth(-1)">&#8592;</button>
+                <span class="cal-title" id="cal-title"></span>
+                <button class="cal-nav" onclick="changeMonth(1)">&#8594;</button>
+              </div>
+              <div class="cal-weekdays">
+                <span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span>
+              </div>
+              <div class="cal-days" id="cal-days"></div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="form-group">
@@ -998,8 +1099,12 @@ CREATE TABLE cover_letter_items (
           <input type="text" id="rec-postal" class="form-control" placeholder="例：〒980-0012">
         </div>
         <div class="form-group" style="grid-column:1/-1;">
-          <label class="form-label">住所</label>
+          <label class="form-label">住所1</label>
           <input type="text" id="rec-address" class="form-control" placeholder="例：仙台市青葉区錦町一丁目7-25">
+        </div>
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label">住所2（ビル名・階数など）</label>
+          <input type="text" id="rec-address2" class="form-control" placeholder="例：〇〇ビル 3F">
         </div>
       </div>
     </div>
@@ -1153,7 +1258,14 @@ async function loadRecipients() {
     const { data, error } = await supabaseClient.from('recipients').select('*').order('company_name');
     if (!error) { state.recipients = data; return; }
   }
-  state.recipients = lsGet('recipients');
+  // ローカルストレージから読み込み（古いデータにpostal_code/addressがない場合も対応）
+  const stored = lsGet('recipients');
+  state.recipients = stored.map(r => ({
+    postal_code: '',
+    address: '',
+    address2: '',
+    ...r,
+  }));
 }
 
 async function loadLetters() {
@@ -1210,6 +1322,7 @@ function openRecipientModal(id = null) {
   document.getElementById('rec-contact').value = rec ? (rec.contact_name || '') : '';
   document.getElementById('rec-postal').value = rec ? (rec.postal_code || '') : '';
   document.getElementById('rec-address').value = rec ? (rec.address || '') : '';
+  document.getElementById('rec-address2').value = rec ? (rec.address2 || '') : '';
   openModal('modal-recipient');
 }
 
@@ -1222,6 +1335,7 @@ async function saveRecipient() {
     contact_name: document.getElementById('rec-contact').value.trim(),
     postal_code: document.getElementById('rec-postal').value.trim(),
     address: document.getElementById('rec-address').value.trim(),
+    address2: document.getElementById('rec-address2').value.trim(),
   };
   if (supabaseClient) {
     if (state.editingRecipientId) {
@@ -1266,7 +1380,10 @@ function openNewModal() {
   document.getElementById('form-recipient').value = '';
   document.getElementById('form-subject').value = '';
   document.getElementById('form-body').value = DEFAULT_BODY;
-  document.getElementById('form-date').value = new Date().toISOString().split('T')[0];
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('form-date').value = today;
+  const td = new Date(today + 'T00:00:00');
+  document.getElementById('form-date-display').value = `${td.getFullYear()}年${String(td.getMonth()+1).padStart(2,'0')}月${String(td.getDate()).padStart(2,'0')}日`;
   renderItemsList([{ description: '', document_type: '', quantity: 1 }]);
   openModal('modal-letter');
 }
@@ -1281,6 +1398,12 @@ function openEditModal(id) {
   document.getElementById('form-body').value = letter.body_text || DEFAULT_BODY;
   const dateStr = letter.custom_date || (letter.created_at ? letter.created_at.split('T')[0] : new Date().toISOString().split('T')[0]);
   document.getElementById('form-date').value = dateStr;
+  if (dateStr) {
+    const ed = new Date(dateStr + 'T00:00:00');
+    document.getElementById('form-date-display').value = `${ed.getFullYear()}年${String(ed.getMonth()+1).padStart(2,'0')}月${String(ed.getDate()).padStart(2,'0')}日`;
+  } else {
+    document.getElementById('form-date-display').value = '';
+  }
   const items = state.letterItems[id] || [{ description: '', document_type: '', quantity: 1 }];
   renderItemsList(items);
   openModal('modal-letter');
@@ -1425,9 +1548,11 @@ function viewLetter(id) {
     </div>
     <div class="print-two-col">
       <div class="print-to-block">
-        <div class="to-company" style="white-space:nowrap;">${esc(recipient?.company_name || '')}</div>
+        <div class="to-company">${esc(recipient?.company_name || '')}</div>
         <div class="to-dept">${esc(recipient?.department || '')}</div>
-        <div class="to-name">${esc(recipient?.contact_name || '')}&emsp;&emsp;&emsp;様</div>
+        <div style="text-align:right; margin-right:80px; margin-top:8px;">
+          <span class="to-name" style="white-space:nowrap;">${esc(recipient?.contact_name || '')}&emsp;様</span>
+        </div>
       </div>
       <div class="print-from-block">
         <div class="from-company">${esc(sender.company_name || '')}</div>
@@ -1440,7 +1565,7 @@ function viewLetter(id) {
         </div>
       </div>
     </div>
-    <div class="print-subject-block">件　名　　${esc(letter.subject || '')}</div>
+    <div class="print-subject-block">件　名　　<span style="font-size:13.5px;">${esc(letter.subject || '')}</span></div>
     <table class="print-items-table">
       <thead>
         <tr><th>内　容</th><th>書類の種類</th><th>部数</th></tr>
@@ -1456,8 +1581,150 @@ function viewLetter(id) {
 }
 
 // ============================================================
-// ENVELOPE PRINT
+// CUSTOM CALENDAR
 // ============================================================
+let calDate = new Date();
+
+// 日本の祝日データ（固定祝日 + ハッピーマンデー計算）
+const FIXED_HOLIDAYS = {
+  '01-01': true, // 元日
+  '02-11': true, // 建国記念の日
+  '02-23': true, // 天皇誕生日
+  '04-29': true, // 昭和の日
+  '05-03': true, // 憲法記念日
+  '05-04': true, // みどりの日
+  '05-05': true, // こどもの日
+  '08-11': true, // 山の日
+  '11-03': true, // 文化の日
+  '11-23': true, // 勤労感謝の日
+};
+
+function getNthWeekday(year, month, weekday, n) {
+  // month: 1-12, weekday: 0=日〜6=土, n: 第n週
+  let count = 0;
+  for (let d = 1; d <= 31; d++) {
+    const date = new Date(year, month - 1, d);
+    if (date.getMonth() !== month - 1) break;
+    if (date.getDay() === weekday) {
+      count++;
+      if (count === n) return d;
+    }
+  }
+  return null;
+}
+
+function isHoliday(year, month, day) {
+  const mm = String(month).padStart(2, '0');
+  const dd = String(day).padStart(2, '0');
+  if (FIXED_HOLIDAYS[`${mm}-${dd}`]) return true;
+
+  // 春分の日・秋分の日（概算）
+  const shunbun = Math.floor(20.8431 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+  const shubun  = Math.floor(23.2488 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+  if (month === 3 && day === shunbun) return true;
+  if (month === 9 && day === shubun)  return true;
+
+  // ハッピーマンデー
+  if (month === 1  && day === getNthWeekday(year, 1,  1, 2)) return true; // 成人の日
+  if (month === 7  && day === getNthWeekday(year, 7,  1, 3)) return true; // 海の日
+  if (month === 9  && day === getNthWeekday(year, 9,  1, 3)) return true; // 敬老の日
+  if (month === 10 && day === getNthWeekday(year, 10, 1, 2)) return true; // スポーツの日
+
+  // 振替休日（日曜祝日の翌月曜）
+  const prev = new Date(year, month - 1, day - 1);
+  if (new Date(year, month - 1, day).getDay() === 1 &&
+      isHolidaySimple(prev.getFullYear(), prev.getMonth() + 1, prev.getDate())) return true;
+
+  return false;
+}
+
+function isHolidaySimple(year, month, day) {
+  const mm = String(month).padStart(2, '0');
+  const dd = String(day).padStart(2, '0');
+  if (FIXED_HOLIDAYS[`${mm}-${dd}`]) return true;
+  const shunbun = Math.floor(20.8431 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+  const shubun  = Math.floor(23.2488 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+  if (month === 3 && day === shunbun) return true;
+  if (month === 9 && day === shubun)  return true;
+  if (month === 1  && day === getNthWeekday(year, 1,  1, 2)) return true;
+  if (month === 7  && day === getNthWeekday(year, 7,  1, 3)) return true;
+  if (month === 9  && day === getNthWeekday(year, 9,  1, 3)) return true;
+  if (month === 10 && day === getNthWeekday(year, 10, 1, 2)) return true;
+  return false;
+}
+
+function toggleCalendar() {
+  const cal = document.getElementById('custom-calendar');
+  if (cal.classList.contains('open')) {
+    cal.classList.remove('open');
+  } else {
+    // 現在の選択値があればその月を表示
+    const val = document.getElementById('form-date').value;
+    if (val) {
+      const d = new Date(val + 'T00:00:00');
+      calDate = new Date(d.getFullYear(), d.getMonth(), 1);
+    } else {
+      calDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    }
+    renderCalendar();
+    cal.classList.add('open');
+  }
+}
+
+function changeMonth(dir) {
+  calDate.setMonth(calDate.getMonth() + dir);
+  renderCalendar();
+}
+
+function renderCalendar() {
+  const year = calDate.getFullYear();
+  const month = calDate.getMonth();
+  document.getElementById('cal-title').textContent = `${year}年 ${month + 1}月`;
+
+  const today = new Date();
+  const selectedVal = document.getElementById('form-date').value;
+  const selected = selectedVal ? new Date(selectedVal + 'T00:00:00') : null;
+
+  const firstDay = new Date(year, month, 1).getDay();
+  const lastDate = new Date(year, month + 1, 0).getDate();
+
+  let html = '';
+  for (let i = 0; i < firstDay; i++) {
+    html += `<button class="cal-day empty"></button>`;
+  }
+  for (let d = 1; d <= lastDate; d++) {
+    const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === d;
+    const isSelected = selected && selected.getFullYear() === year && selected.getMonth() === month && selected.getDate() === d;
+    const dayOfWeek = new Date(year, month, d).getDay();
+    const sunClass = dayOfWeek === 0 ? ' sun' : '';
+    const satClass = dayOfWeek === 6 ? ' sat' : '';
+    const holidayClass = (dayOfWeek !== 0 && isHoliday(year, month + 1, d)) ? ' holiday' : '';
+    const todayClass = isToday ? ' today' : '';
+    const selectedClass = isSelected ? ' selected' : '';
+    html += `<button class="cal-day${sunClass}${satClass}${holidayClass}${todayClass}${selectedClass}" onclick="selectDate(${year},${month},${d})">${d}</button>`;
+  }
+  document.getElementById('cal-days').innerHTML = html;
+}
+
+function selectDate(year, month, day) {
+  const d = new Date(year, month, day);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  document.getElementById('form-date').value = `${yyyy}-${mm}-${dd}`;
+  document.getElementById('form-date-display').value = `${yyyy}年${mm}月${dd}日`;
+  document.getElementById('custom-calendar').classList.remove('open');
+}
+
+// カレンダー外クリックで閉じる
+document.addEventListener('click', e => {
+  const wrap = document.getElementById('date-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    document.getElementById('custom-calendar')?.classList.remove('open');
+  }
+});
+
+
 let currentEnvelopeLetterId = null;
 
 function openEnvelopeModal() {
@@ -1469,13 +1736,15 @@ function openEnvelopeModal() {
 
   const postal = recipient?.postal_code || '';
   const address = recipient?.address || '';
+  const address2 = recipient?.address2 || '';
   const company = recipient?.company_name || '';
   const dept = recipient?.department || '';
   const contact = recipient?.contact_name || '';
 
   // Excelレイアウト忠実再現
   // 行3: 郵便番号 (C3, font-size:14px)
-  // 行4: 住所    (C4, font-size:14px, 左揃え)
+  // 行4: 住所1   (C4, font-size:14px, 左揃え)
+  // 行4b: 住所2  (入力がある場合のみ表示)
   // 行5: 空行スペーサー
   // 行6: 会社名  (C6, font-size:16px)
   // 行7: 部署名(C7,16px) + 担当者(F7,16px) + 様(G7,18px,右揃え)
@@ -1485,6 +1754,7 @@ function openEnvelopeModal() {
     <div class="envelope-document">
       <div class="env-row-postal">${esc(postal)}</div>
       <div class="env-row-address">${esc(address)}</div>
+      ${address2 ? `<div class="env-row-address">${esc(address2)}</div>` : '<div class="env-row-spacer"></div>'}
       <div class="env-row-spacer"></div>
       <div class="env-row-company">${esc(company)}</div>
       <div class="env-row-name">
