@@ -954,7 +954,12 @@ CREATE TABLE cover_letter_items (
 
   <!-- TAB: 送り先管理 -->
   <div id="tab-recipients" class="tab-panel">
-    <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+      <button class="btn btn-secondary btn-sm" onclick="exportRecipientsCSV()">📥 CSV出力</button>
+      <label class="btn btn-secondary btn-sm" style="cursor:pointer;margin:0;">
+        📤 CSV取込
+        <input type="file" id="csv-import-input" accept=".csv" style="display:none;" onchange="importRecipientsCSV(event)">
+      </label>
       <button class="btn btn-primary" onclick="openRecipientModal()">＋ 送り先を追加</button>
     </div>
     <div class="table-wrap">
@@ -1410,6 +1415,7 @@ function openNewModal() {
   document.getElementById('form-date').value = today;
   const td = new Date(today + 'T00:00:00');
   document.getElementById('form-date-display').value = `${td.getFullYear()}年${String(td.getMonth()+1).padStart(2,'0')}月${String(td.getDate()).padStart(2,'0')}日`;
+  calDate = new Date(td.getFullYear(), td.getMonth(), 1);
   document.getElementById('unsent-btn').style.display = 'none';
   renderItemsList([{ description: '', document_type: '', quantity: 1 }]);
   openModal('modal-letter');
@@ -1912,7 +1918,111 @@ function renderList() {
   }).join('');
 }
 
-function renderRecipients() {
+// ============================================================
+// CSV 出力 / 取込
+// ============================================================
+function exportRecipientsCSV() {
+  if (!state.recipients.length) { showToast('送り先データがありません', 'error'); return; }
+
+  const headers = ['会社名', '部署名', '担当者名', '郵便番号', '住所1', '住所2'];
+  const rows = state.recipients.map(r => [
+    r.company_name  || '',
+    r.department    || '',
+    r.contact_name  || '',
+    r.postal_code   || '',
+    r.address       || '',
+    r.address2      || '',
+  ]);
+
+  const csvContent = [headers, ...rows]
+    .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    .join('\r\n');
+
+  const bom = '\uFEFF'; // Excel用BOM
+  const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+  a.download = `送り先一覧_${dateStr}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('CSVを出力しました', 'success');
+}
+
+async function importRecipientsCSV(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  event.target.value = ''; // リセット（同じファイルの再取込を可能に）
+
+  const text = await file.text();
+  // BOM除去
+  const cleaned = text.replace(/^\uFEFF/, '');
+  const lines = cleaned.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) { showToast('データが見つかりません', 'error'); return; }
+
+  // ヘッダー行をスキップ（1行目）
+  const dataLines = lines.slice(1);
+  let successCount = 0;
+  let errorCount = 0;
+
+  for (const line of dataLines) {
+    // CSVパース（ダブルクォート対応）
+    const cols = parseCSVLine(line);
+    if (!cols[0]?.trim()) continue; // 会社名が空ならスキップ
+
+    const rec = {
+      company_name : cols[0]?.trim() || '',
+      department   : cols[1]?.trim() || '',
+      contact_name : cols[2]?.trim() || '',
+      postal_code  : cols[3]?.trim() || '',
+      address      : cols[4]?.trim() || '',
+      address2     : cols[5]?.trim() || '',
+    };
+
+    try {
+      if (supabaseClient) {
+        const { error } = await supabaseClient.from('recipients').insert(rec);
+        if (error) { errorCount++; continue; }
+      } else {
+        state.recipients.push({ ...rec, id: uid(), created_at: new Date().toISOString() });
+      }
+      successCount++;
+    } catch(e) { errorCount++; }
+  }
+
+  if (!supabaseClient) lsSet('recipients', state.recipients);
+  await loadRecipients();
+  renderAll();
+
+  if (errorCount > 0) {
+    showToast(`取込完了：${successCount}件成功、${errorCount}件失敗`, 'error');
+  } else {
+    showToast(`${successCount}件の送り先を取込みました`, 'success');
+  }
+}
+
+function parseCSVLine(line) {
+  const result = [];
+  let current = '';
+  let inQuote = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuote && line[i+1] === '"') { current += '"'; i++; }
+      else { inQuote = !inQuote; }
+    } else if (ch === ',' && !inQuote) {
+      result.push(current); current = '';
+    } else {
+      current += ch;
+    }
+  }
+  result.push(current);
+  return result;
+}
+
+
   const tbody = document.getElementById('recipients-body');
   if (!state.recipients.length) {
     tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:32px;">送り先がありません</td></tr>`;
