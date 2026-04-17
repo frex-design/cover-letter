@@ -590,10 +590,15 @@
   /* PRINT MEDIA */
   @media print {
     @page {
-      margin-top: 14mm;
-      margin-bottom: 18mm;
+      margin-top: 10mm;
+      margin-bottom: 10mm;
       margin-left: 10mm;
       margin-right: 10mm;
+      size: A4;
+    }
+    /* ブラウザのヘッダー・フッターを非表示 */
+    html {
+      -webkit-print-color-adjust: exact;
     }
     body * { visibility: hidden !important; }
 
