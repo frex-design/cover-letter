@@ -593,39 +593,46 @@
       margin: 10mm;
       size: A4;
     }
-    /* 全非表示 */
+
+    /* まず全部非表示 */
     body * { visibility: hidden !important; }
 
-    /* 送付書印刷モード: #print-area のみ */
-    body.print-letter #print-area,
-    body.print-letter #print-area * {
-      visibility: visible !important;
-    }
+    /* ===== 送付書印刷 ===== */
+    body.print-letter #print-area { visibility: visible !important; }
+    body.print-letter #print-area * { visibility: visible !important; }
     body.print-letter #print-area {
       position: fixed;
-      top: 0; left: 0;
-      width: 100%;
+      top: 0; left: 0; width: 100%;
       padding: 0 24px;
       background: #ffffff !important;
     }
-    body.print-letter .print-document {
-      background: #ffffff !important;
+    /* 黒・グレーライン強制表示 */
+    body.print-letter .line-black {
+      background: #1a1612 !important;
+      height: 3px !important;
+      display: block !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    body.print-letter .line-gray {
+      background: #b0a89a !important;
+      height: 6px !important;
+      display: block !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
     }
 
-    /* 封書印刷モード: #envelope-print-area のみ */
-    body.print-envelope #envelope-print-area,
-    body.print-envelope #envelope-print-area * {
-      visibility: visible !important;
-    }
+    /* ===== 封書印刷 ===== */
+    body.print-envelope #envelope-print-area { visibility: visible !important; }
+    body.print-envelope #envelope-print-area * { visibility: visible !important; }
     body.print-envelope #envelope-print-area {
       position: fixed;
-      top: 0; left: 0;
-      width: 100%;
+      top: 0; left: 0; width: 100%;
       padding: 20px 24px;
       background: #ffffff !important;
     }
 
-    /* 共通: 背景色強制印刷 */
+    /* ===== 共通 ===== */
     .print-subject-block,
     .print-items-table th {
       -webkit-print-color-adjust: exact !important;
