@@ -1892,9 +1892,44 @@ function openEnvelopeModal() {
 }
 
 function printLetter() {
-  document.body.classList.add('print-letter');
-  window.print();
-  document.body.classList.remove('print-letter');
+  var src = document.getElementById('print-content').innerHTML;
+
+  // 印刷用スタイルをメインページから収集
+  var styles = '';
+  for (var i = 0; i < document.styleSheets.length; i++) {
+    try {
+      var rules = document.styleSheets[i].cssRules || document.styleSheets[i].rules;
+      for (var j = 0; j < rules.length; j++) {
+        styles += rules[j].cssText + '\n';
+      }
+    } catch(e) {}
+  }
+
+  var win = window.open('', '_blank', 'width=900,height=750');
+  var html = '<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">'
+    + '<link rel="preconnect" href="https://fonts.googleapis.com">'
+    + '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+    + '<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&family=Noto+Serif+JP:wght@400;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">'
+    + '<title>送付書</title>'
+    + '<style>'
+    + 'body { margin: 0; padding: 0; background: #fff; }'
+    + '.no-print { background: #f5f0e8; padding: 12px; text-align: center; border-bottom: 1px solid #d9d0c3; }'
+    + '.no-print button { padding: 8px 24px; margin: 0 6px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-family: "Noto Sans JP", sans-serif; font-weight: 500; }'
+    + '.btn-exec { background: #c96442; color: #fff; }'
+    + '.btn-cls  { background: #ede8df; color: #1a1612; border: 1px solid #d9d0c3; }'
+    + styles
+    + '@page { margin: 0; size: A4; }'
+    + '@media print { .no-print { display: none !important; } body { margin: 0; } }'
+    + '</style></head><body>'
+    + '<div class="no-print">'
+    + '<button class="btn-exec" onclick="window.print()">🖨 印刷</button>'
+    + '<button class="btn-cls" onclick="window.close()">✕ 閉じる</button>'
+    + '</div>'
+    + '<div class="print-document" style="margin:0;border-radius:0;">' + src + '</div>'
+    + '</body></html>';
+
+  win.document.write(html);
+  win.document.close();
 }
 function printEnvelope() {
   document.body.classList.add('print-envelope');
