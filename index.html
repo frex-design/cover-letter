@@ -598,11 +598,35 @@
     body * { visibility: hidden !important; }
 
     /* ===== 送付書印刷 ===== */
-    body.print-letter #print-area { visibility: visible !important; }
+    /* 印刷対象モーダル以外は完全に消す（余分なページ高さ・2枚目複製を防止） */
+    body.print-letter > *:not(#modal-view) { display: none !important; }
+    /* モーダルの装飾を解除し、通常フローで自然な高さ＝1ページに収める */
+    body.print-letter #modal-view,
+    body.print-letter #modal-view .modal,
+    body.print-letter #modal-view .modal-body {
+      position: static !important;
+      display: block !important;
+      overflow: visible !important;
+      max-width: none !important;
+      max-height: none !important;
+      height: auto !important;
+      width: auto !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border: none !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      background: #ffffff !important;
+    }
+    /* モーダルのヘッダー/フッター（✕・ボタン類）は印刷しない */
+    body.print-letter #modal-view .modal-header,
+    body.print-letter #modal-view .modal-footer { display: none !important; }
+
+    body.print-letter #print-area,
     body.print-letter #print-area * { visibility: visible !important; }
     body.print-letter #print-area {
-      position: fixed;
-      top: 0; left: 0; width: 100%;
+      position: static !important;
+      width: 100%;
       padding: 0 24px;
       background: #ffffff !important;
     }
@@ -623,11 +647,32 @@
     }
 
     /* ===== 封書印刷 ===== */
-    body.print-envelope #envelope-print-area { visibility: visible !important; }
+    body.print-envelope > *:not(#modal-envelope) { display: none !important; }
+    body.print-envelope #modal-envelope,
+    body.print-envelope #modal-envelope .modal,
+    body.print-envelope #modal-envelope .modal-body {
+      position: static !important;
+      display: block !important;
+      overflow: visible !important;
+      max-width: none !important;
+      max-height: none !important;
+      height: auto !important;
+      width: auto !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border: none !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      background: #ffffff !important;
+    }
+    body.print-envelope #modal-envelope .modal-header,
+    body.print-envelope #modal-envelope .modal-footer { display: none !important; }
+
+    body.print-envelope #envelope-print-area,
     body.print-envelope #envelope-print-area * { visibility: visible !important; }
     body.print-envelope #envelope-print-area {
-      position: fixed;
-      top: 0; left: 0; width: 100%;
+      position: static !important;
+      width: 100%;
       padding: 20px 24px;
       background: #ffffff !important;
     }
