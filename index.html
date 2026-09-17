@@ -1682,11 +1682,11 @@ function viewLetter(id) {
     </div>
     <div class="print-two-col">
       <div class="print-to-block">
-        <div class="to-company">${esc(recipient?.company_name || '')}</div>
+        <div class="to-company">${esc(recipient?.company_name || '')}${recipient?.contact_name ? '' : '&emsp;御中'}</div>
         <div class="to-dept">${esc(recipient?.department || '')}</div>
-        <div style="text-align:right; margin-right:80px; margin-top:8px;">
-          <span class="to-name" style="white-space:nowrap;">${esc(recipient?.contact_name || '')}&emsp;様</span>
-        </div>
+        ${recipient?.contact_name ? `<div style="text-align:right; margin-right:80px; margin-top:8px;">
+          <span class="to-name" style="white-space:nowrap;">${esc(recipient?.contact_name)}&emsp;様</span>
+        </div>` : ''}
       </div>
       <div class="print-from-block">
         <div class="from-company">${esc(sender.company_name || '')}</div>
@@ -1890,11 +1890,10 @@ function openEnvelopeModal() {
       <div class="env-row-address">${esc(address)}</div>
       ${address2 ? `<div class="env-row-address">${esc(address2)}</div>` : '<div class="env-row-spacer"></div>'}
       <div class="env-row-spacer"></div>
-      <div class="env-row-company">${esc(company)}</div>
+      <div class="env-row-company">${esc(company)}${contact ? '' : '　御中'}</div>
       <div class="env-row-name">
         <span class="env-dept">${esc(dept)}</span>
-        <span class="env-person">　${esc(contact)}</span>
-        <span class="env-sama">　様</span>
+        ${contact ? `<span class="env-person">　${esc(contact)}</span><span class="env-sama">　様</span>` : ''}
       </div>
     </div>
   `;
@@ -1940,7 +1939,7 @@ function openStatModal(type) {
       return `<tr>
         <td style="font-family:var(--font-mono);font-size:12px;color:var(--text2)">${dateStr}</td>
         <td>
-          <div style="font-weight:600">${esc(rec?.company_name||'（不明）')}</div>
+          <div style="font-weight:600">${esc(rec?.company_name||'（不明）')}${rec?.contact_name ? '' : '　御中'}</div>
           ${rec?.contact_name ? `<div style="font-size:12px;color:var(--text2)">${esc(rec.contact_name)}　様</div>` : ''}
         </td>
         <td>${esc(l.subject||'')}</td>
@@ -2032,7 +2031,7 @@ function renderList() {
     return `<tr id="row-${l.id}" class="${sentClass}">
       <td style="font-family:var(--font-mono);font-size:12px;color:var(--text2)">${dateStr}</td>
       <td>
-        <div style="font-weight:600">${esc(rec?.company_name||'（不明）')}</div>
+        <div style="font-weight:600">${esc(rec?.company_name||'（不明）')}${rec?.contact_name ? '' : '　御中'}</div>
         ${rec?.contact_name ? `<div style="font-size:12px;color:var(--text2)">${esc(rec.contact_name)}　様</div>` : ''}
       </td>
       <td>${esc(l.subject||'')}</td>
@@ -2165,7 +2164,7 @@ function renderRecipients() {
   tbody.innerHTML = state.recipients.map(r => {
     const count = state.letters.filter(l => l.recipient_id === r.id).length;
     return `<tr>
-      <td style="font-weight:600">${esc(r.company_name)}</td>
+      <td style="font-weight:600">${esc(r.company_name)}${r.contact_name ? '' : '　御中'}</td>
       <td style="color:var(--text2)">${esc(r.department||'')}</td>
       <td>${esc(r.contact_name||'')}${r.contact_name ? '　様' : ''}</td>
       <td><span class="badge badge-green">${count} 件</span></td>
@@ -2215,7 +2214,7 @@ function renderByRecipient() {
 
 function updateRecipientSelects() {
   const options = state.recipients.map(r =>
-    `<option value="${r.id}">${esc(r.company_name)}${r.contact_name ? ' / ' + r.contact_name + ' 様' : ''}</option>`
+    `<option value="${r.id}">${esc(r.company_name)}${r.contact_name ? ' / ' + r.contact_name + ' 様' : ' 御中'}</option>`
   ).join('');
   document.getElementById('form-recipient').innerHTML = `<option value="">— 送り先を選択 —</option>${options}`;
   const filterOpts = `<option value="">すべての送り先</option>` + state.recipients.map(r =>
