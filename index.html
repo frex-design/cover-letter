@@ -337,7 +337,7 @@
   .print-modal { max-width: 820px; }
   .print-document {
     font-family: 'Noto Sans JP', sans-serif;
-    background: #fdfcfa;
+    background: #ffffff;
     color: #1a1612;
     padding: 48px 56px;
     border-radius: var(--radius);
@@ -458,9 +458,9 @@
     line-height: 2.1;
     color: #2a2018;
     text-indent: 0;
-    padding: 16px 20px;
-    background: #f7f4ef;
-    border-radius: 4px;
+    padding: 16px 0;
+    background: transparent;
+    border-radius: 0;
     font-family: 'Noto Serif JP', serif;
   }
   .print-items-table {
@@ -592,6 +592,13 @@
     @page {
       margin: 10mm;
       size: A4;
+    }
+
+    /* ページ地色を白に強制（body の --bg ベージュが印刷されるのを防止） */
+    html, body {
+      background: #ffffff !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
     }
 
     /* まず全部非表示 */
